@@ -1,0 +1,17 @@
+{
+    "test 中文": {
+        "你好": {
+            "data": {
+                "address": "363 Changping Rd, Jing'an District, Shanghai, China", 
+                "amount": 10, 
+                "good_id": 1, 
+                "price": 99, 
+                "user_id": 1
+            }
+        }, 
+        "新建": {}
+    }, 
+    "user": {
+        "health_check": {}
+    }
+}
