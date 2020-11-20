@@ -526,7 +526,7 @@ class NamekoManWidget(QWidget):
 
         service = self.serviceEdit.text()
         method = self.methodEdit.text()
-        logging.info("Send rpc start, waiting result!")
+        logging.info("Send rpc start, waiting result......")
         try:
             params = json.loads(self.paramsEdit.text())
             result = getattr(getattr(getattr(self, self.RPC), service), method)(**params)
