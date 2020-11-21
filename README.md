@@ -1,4 +1,5 @@
 # namekoman
+## 介绍
 1. 解压namekoman.zip将namekoman放到/Applications目录下，双击打开，如遇权限问题，系统偏好设置->安全性与隐私->通用，点击允许打开
 2. namekoman类似于postman，是为了解决使用nameko shell发送请求麻烦的问题，只有mac版。namekoman可以添加service，
 添加method和params，点击发送按钮可以发送rpc请求。编辑过程中数据会被写进namekoman.json，保存在磁盘上
@@ -11,8 +12,17 @@
 8. 有建议或有bug可以向我反馈
 9. TODO：1) app体积太大 2) 支持一个service下新建多个同名method 3) 多个发送请求页
 
-# 开发
-Python3.6
+## 依赖
+- Python3.6
+- PyQt5
+- nameko
+- pyinstaller
 
-# 打包
-Pyinstaller
+## 打包
+### 生成spec文件
+pyinstaller --onedir -y -w namekoman.py
+### 修改spec文件
+- Analysis：datas指定需要打包进app的文件，hiddenimports指定额外依赖的包
+- BUNDLE：icon指定图标，info_plist说明程序信息，可以按照git仓库的文件进行配置
+### 生成app
+pyinstaller --onedir -y namekoman.spec
