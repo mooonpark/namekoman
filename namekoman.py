@@ -46,6 +46,7 @@ def readFile(filePath):
 CONST_DATA_FILE_PATH = getFilePath("namekoman.json")
 
 README = """
+0. 如遇权限问题，系统偏好设置->安全性与隐私->通用，点击允许打开
 1. 右键添加service和method，数据存储在namekoman.json文件中
 2. 进入/Applications目录找到namekoman，右键选择显示包内容，进入Contents/Resources，可以编辑namekoman.json
 3. rpc超时时间为5s
