@@ -1,85 +1,13 @@
 {
-    "billing": {
-        "health_check": {}
-    }, 
-    "bookings": {
-        "health_check": {}
-    }, 
-    "communications": {
-        "health_check": {}
-    }, 
-    "configurations": {
-        "health_check": {}
-    }, 
-    "contracts": {
-        "health_check": {}
-    }, 
-    "files": {
-        "health_check": {}
-    }, 
-    "payments": {
-        "health_check": {}
-    }, 
-    "prices": {
-        "health_check": {}
-    }, 
-    "process": {
-        "health_check": {}
-    }, 
-    "properties": {
-        "bulk_create_bed_block": {
-            "bed_id_list": [
-                269, 
-                270
-            ], 
-            "data": {
-                "date_end": "2020-04-25", 
-                "date_start": "2020-03-26", 
-                "property_id": 1, 
-                "status": "turnaround"
-            }, 
-            "fail_when_unblockable": false, 
-            "filter_data": {
-                "bed_status": [
-                    "available"
-                ], 
-                "building_id": [
-                    1
-                ], 
-                "date_end": "2020-04-25", 
-                "date_start": "2020-03-26", 
-                "floor_id": [
-                    4
-                ], 
-                "room_type_id": [
-                    2
-                ]
-            }
-        }, 
-        "bulk_unblock_bed": {
-            "bed_status_id_list": [
-                6964133
-            ]
-        }, 
-        "get_bed_type": {
-            "id_": 1
-        }, 
-        "health_check": {}, 
-        "page_bed_status": {
-            "filters": [
-                {
-                    "field": "id", 
-                    "op": "==", 
-                    "value": 7064919
-                }
-            ], 
-            "page_num": 1, 
-            "page_size": 1
-        }, 
-        "single_unblock_bed": {
-            "bed_status_id": 706318
+    "order": {
+        "create_order": {
+            "address": "363 Changping Rd, Jing'an District, Shanghai, China",
+            "amount": 10,
+            "good_id": 1,
+            "price": 99,
+            "user_id": 1
         }
-    }, 
+    },
     "users": {
         "health_check": {}
     }
