@@ -33,20 +33,25 @@ CONST_METHOD_INPUT = "page_bed_status"
 AMQP_URI_CONFIG_KEY = "AMQP_URI"
 
 
-def readFile(filePath):
-    with open(filePath) as f:
-        return f.read()
-
-
-README = readFile("README.md")
-
-
 def getFilePath(filepath):
     # 需要这样写，否则pyinstaller打包后会找不到文件
     return os.path.join(os.path.dirname(sys.argv[0]), filepath)
 
 
+def readFile(filePath):
+    with open(filePath) as f:
+        return f.read()
+
+
 CONST_DATA_FILE_PATH = getFilePath("namekoman.json")
+
+README = """
+1. 右键添加service和method，数据存储在namekoman.json文件中
+2. 进入/Applications目录找到namekoman，右键选择显示包内容，进入Contents/Resources，可以编辑namekoman.json
+3. rpc超时时间为5s
+4. params过程时，按下cmd+r，会有惊喜
+5. 感谢
+"""
 
 
 def getAMQPConfig(broker):
@@ -56,6 +61,7 @@ def getAMQPConfig(broker):
 def dictToJsonStr(dataDict):
     return json.dumps(dataDict,
                       sort_keys=True, indent=4,
+                      # indent=4,
                       separators=(", ", ": "),
                       ensure_ascii=False
                       )
@@ -101,7 +107,7 @@ class Storage(object):
     def loadData(self):
         try:
             with open(self.path) as f:
-                return collections.OrderedDict(json.loads(f.read()))
+                return collections.OrderedDict(json.loads(f.read(), object_pairs_hook=collections.OrderedDict))
         except Exception as e:
             logging.exception(e)
             return collections.OrderedDict()
@@ -135,11 +141,21 @@ class Storage(object):
         return True
 
     def addService(self, service):
-        if service not in self.data:
-            self.data[service] = dict()
-            self.save()
+        if service in self.data:
+            return False
+        self.data[service] = dict()
+        self.save()
+        return True
 
     def addMethod(self, service, method, params):
+        if service in self.data and method in self.data[service]:
+            return False
+
+        self.data[service][method] = params if params else dict()
+        self.save()
+        return True
+
+    def updateMethod(self, service, method, params):
         if service in self.data:
             self.data[service][method] = params if params else dict()
             self.save()
@@ -349,11 +365,12 @@ class FolderWidget(QWidget):
             if name == "":
                 alert("Service name is empty!")
                 return
+            if not storage.addService(name):
+                alert("Input has one, please change one!")
+                return
             node = self.newServiceNode(name)
             if self.clickedItem is None:
                 self.treeView.addRootItem(node)
-
-            storage.addService(name)
 
     def onAddMethod(self):
         name, ok = QInputDialog.getText(self, "⌨️", "Please enter method name")
@@ -362,10 +379,13 @@ class FolderWidget(QWidget):
                 alert("Method name is empty!")
                 return
             service = self.clickedItem.getName()
+            if not storage.addMethod(service, name, None):
+                alert("Input has one, please change one!")
+                return
+
             node = self.newMethodNode(service, name)
             if self.clickedItem.getIsDir():
                 self.clickedItem.appendRow(node)
-            storage.addMethod(service, name, None)
 
     def onRename(self):
         msg = "Please enter service name" if self.clickedItem.getIsDir() else "Please enter method name"
@@ -446,6 +466,7 @@ class NamekoManWidget(QWidget):
         self.resultLabel.setAlignment(QtCoreQt.AlignLeft)
         self.resultLabel.setTextInteractionFlags(QtCoreQt.TextSelectableByMouse)
         self.resultLabel.setText(README)
+
         self.scrollArea.setWidget(self.resultLabel)
         self.scrollArea.setMinimumSize(500, 600)
 
@@ -483,6 +504,7 @@ class NamekoManWidget(QWidget):
         setup_config(None, define=getAMQPConfig(self.broker))
         client = ClusterRpcClient(timeout=5)
         setattr(self, self.RPC, client.start())
+        logging.info("Set new nameko, broker:{}".format(self.broker))
 
     def initNameko(self):
         """
@@ -521,8 +543,8 @@ class NamekoManWidget(QWidget):
             return
         result = dictToJsonStr(result)
         self.showResult(result)
-        storage.addMethod(service, method, params)
-        logging.info("Send rpc end:\n{}".format(result))
+        storage.updateMethod(service, method, params)
+        logging.info("Send rpc end:\n serivce:{}\n method:{}\n result:\n{}".format(service, method, result))
 
 
 def error_handler(etype, value, tb):
