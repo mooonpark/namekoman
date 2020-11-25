@@ -1,14 +1,8 @@
 {
-    "order": {
-        "create_order": {
-            "address": "363 Changping Rd, Jing'an District, Shanghai, China",
-            "amount": 10,
-            "good_id": 1,
-            "price": 99,
-            "user_id": 1
+    "address": {
+        "health_update": {
+            "health": {}
         }
     },
-    "users": {
-        "health_check": {}
-    }
+    "users": {}
 }
