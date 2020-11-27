@@ -45,7 +45,7 @@ pyinstaller -D -y namekoman.spec
 6. 编辑params过程中，按下cmd+r，会有惊喜
 7. 新建的service和method不建议输入中文，也不应该输入中文，可能会导致程序异常（这条待定）
 8. 有建议或有bug可以向我反馈
-9. TODO：1) app体积太大
+9. TODO：1) app体积太大 2) 如果返回结果非常非常多，页面也会卡住
 10. 感谢
 ## 依赖
 - Python3.6

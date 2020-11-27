@@ -75,7 +75,8 @@ def strToJsonStr(dictStr):
         return dictToJsonStr(json.loads(dictStr))
     except:
         return dictStr.replace("'", '"').replace("：", ":")\
-            .replace("“", '"').replace("”", '"').replace("，", ",")
+            .replace("“", '"').replace("”", '"').replace("，", ",")\
+            .replace("【", "[").replace("】", "]")
 
 
 def errorToJsonStr(error):
@@ -330,6 +331,12 @@ class FolderTreeView(QTreeView):
     # 禁用双击事件
     def mouseDoubleClickEvent(self, e: QMouseEvent) -> None:
         pass
+
+    # 禁用Enter按键
+    def keyPressEvent(self, event):
+        print(event.key())
+        if event.key() != QtCoreQt.Key_Return:
+            super().keyPressEvent(event)
 
     def addRootItem(self, item):
         self.model().invisibleRootItem().appendRow(item)
