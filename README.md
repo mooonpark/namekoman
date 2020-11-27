@@ -10,9 +10,8 @@
 6. 编辑params过程中，按下cmd+r，会有惊喜
 7. 新建的service和method不建议输入中文，也不应该输入中文，可能会导致程序异常（这条待定）
 8. 有建议或有bug可以向我反馈
-9. 代码地址：https://github.com/mooonpark/namekoman
-10. TODO：1) app体积太大 2）支持一个service下新建多个同名method
-11. 感谢
+9. TODO：1) app体积太大 2）支持一个service下新建多个同名method
+10. 感谢
 ## 依赖
 - Python3.6
 - PyQt5
@@ -21,9 +20,48 @@
 
 ## 打包
 ### 生成spec文件
-pyinstaller --onedir -y -w namekoman.py
+pyinstaller -D -y -w namekoman.py
+
 ### 修改spec文件
-- Analysis：datas指定需要打包进app的文件，hiddenimports指定额外依赖的包
+
+#### Analysis
+##### datas指定需要打包进app的文件，hiddenimports指定额外依赖的包
 - BUNDLE：icon指定图标，info_plist说明程序信息，可以按照git仓库的文件进行配置
 ### 生成app
-pyinstaller --onedir -y namekoman.spec
+pyinstaller -D -y namekoman.spec
+
+
+
+# namekoman
+## Introduce
+1. Namekoman is similar to postman, to solve the problem of sending requests unfriendly using nameko shell.
+Right click to add a service, create a new module under the service, add methods under the module,
+and will store the data in the namekoman.json and on disk
+2. Unzip namekoman.zip and put it in /Application directory, double click to open it. If there is a permission
+problem, system preferences->security and privacy->general, click allow to open it
+3. After completing the previous step, you can enter the /Application director to find namekoman, and right click
+to select show package, then enter Contents/Resources.You will find namekoman.json, you can edit it
+4. Namekoman successfully sends the request depends on rabbit mq. Please config broker, default broker: amqp://guest:guest@localhost
+5. Rpc timeout defaults to 10s. If the mouse pointer turns around after clicking the send button, please wait some seconds.
+6. In the process of editing params, there will be a surprise if you can press cmd+r
+
+## Requirements
+- Python3.6
+- PyQt5
+- nameko
+- pyinstaller
+
+## Pyinstaller
+### Generate spec file
+pyinstaller -D -y -w namekoman.py
+### Modify spec file
+- Analysis
+1. datas: specify the files that need to be packaged into app
+2. hiddenimports: specify additional dependent packages
+
+- BUNDLE
+1. icon: specify the app icon
+2. info_plist: app info
+
+### Make app
+pyinstaller -D -y namekoman.spec
