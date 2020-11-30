@@ -329,12 +329,11 @@ class FolderTreeView(QTreeView):
         # self.setFrameStyle(QFrame.NoFrame)
 
     # 禁用双击事件
-    def mouseDoubleClickEvent(self, e: QMouseEvent) -> None:
+    def mouseDoubleClickEvent(self, e: QMouseEvent):
         pass
 
     # 禁用Enter按键
     def keyPressEvent(self, event):
-        print(event.key())
         if event.key() != QtCoreQt.Key_Return:
             super().keyPressEvent(event)
 
