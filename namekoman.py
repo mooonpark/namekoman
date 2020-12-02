@@ -11,7 +11,7 @@ from nameko.cli.utils.config import setup_config
 from nameko.standalone.rpc import ClusterRpcClient
 
 from PyQt5.Qt import QStandardItem, QStandardItemModel, QPoint, QCursor
-from PyQt5.QtCore import Qt as QtCoreQt
+from PyQt5.QtCore import Qt as QtCoreQt, pyqtSignal
 from PyQt5.QtGui import QMouseEvent
 from PyQt5.Qsci import QsciScintilla, QsciLexerJSON
 from PyQt5.QtWidgets import (QWidget, QTreeView, QPushButton, QLineEdit, QPlainTextEdit,
@@ -53,7 +53,6 @@ README = """
 2. 将应用复制进/Applications文件夹，选中app右键选择显示包内容，进入Contents/Resources，可以编辑namekoman.json
 3. rpc超时时间默认为{}s
 4. 填写params时，按下cmd+r，会有惊喜
-5. 感谢
 """.format(CONST_TIMEOUT)
 
 
@@ -118,7 +117,7 @@ class Storage(object):
             return collections.OrderedDict()
 
     def save(self):
-        with open(self.path, "w") as f:
+        with open(self.path, "w", encoding="utf-8") as f:
             f.write(dictToJsonStr(self.data))
 
     def getData(self):
@@ -346,10 +345,9 @@ class FolderTreeView(QTreeView):
 
 class FolderWidget(QWidget):
 
-    def __init__(self, serviceEdit, methodEdit, paramsEdit):
-        """
-        传入三个edit控件是不是不好，是不是应该用信号进行文本的更新？
-        """
+    clickNodeSingal = pyqtSignal(dict)
+
+    def __init__(self):
         super().__init__()
         self.setMinimumSize(300, 400)
         self.setMaximumSize(400, 2000)
@@ -364,22 +362,12 @@ class FolderWidget(QWidget):
 
         # 鼠标选中的item
         self.clickedItem = None
-        self.serviceEdit = serviceEdit
-        self.methodEdit = methodEdit
-        self.paramsEdit = paramsEdit
 
     def getCurrentClickedNode(self) -> TreeNode:
         """
         获取鼠标当前点击节点
         """
-        a = self.treeView.model().itemFromIndex(self.treeView.currentIndex())
-        return a
-
-    def showInfo(self, service, method, params):
-        self.serviceEdit.setText(service)
-        self.methodEdit.setText(method)
-        if params:
-            self.paramsEdit.setText(params)
+        return self.treeView.model().itemFromIndex(self.treeView.currentIndex())
 
     def loadFromFile(self):
         """
@@ -433,13 +421,11 @@ class FolderWidget(QWidget):
         return node
 
     def onTreeNodeClicked(self, modelIndex):
-        # 根据index找到鼠标点击的节点
+        """
+        根据index找到鼠标点击的节点，发送节点数据到其他控件，用于显示
+        """
         node = self.treeView.model().itemFromIndex(modelIndex)
-        info = node.getNodeInfo()
-        service = info.get(CONST_SERVICE, "")
-        method = info.get(CONST_METHOD, "")
-        params = info.get(CONST_PARAMS, {})
-        self.showInfo(service, method, dictToJsonStr(params))
+        self.clickNodeSingal.emit(node.getNodeInfo())
 
     def onAddService(self):
         name, ok = QInputDialog.getText(self, "⌨️", "Please enter service name")
@@ -494,7 +480,12 @@ class FolderWidget(QWidget):
             if not self.clickedItem.updateName(name):
                 alert("Input has one, please change one!")
                 return
-            self.showInfo(self.clickedItem.getServiceName(), name, None)
+            info = {
+                CONST_SERVICE: self.clickedItem.getServiceName(),
+                CONST_METHOD: name,
+                CONST_PARAMS: None
+            }
+            self.clickNodeSingal.emit(info)
 
 
 class NamekoManQsciScintilla(QsciScintilla):
@@ -570,7 +561,7 @@ class NamekoManWidget(QWidget):
         self.scrollArea.setMinimumSize(500, 600)
 
         # 初始化文件夹树
-        self.folderBar = FolderWidget(self.serviceEdit, self.methodEdit, self.paramsEdit)
+        self.folderBar = FolderWidget()
 
         # 使用网格布局进行布局
         self.layout = QGridLayout()
@@ -587,6 +578,7 @@ class NamekoManWidget(QWidget):
         self.setLayout(self.layout)
 
         self.sendButton.clicked.connect(self.onSendRpc)
+        self.folderBar.clickNodeSingal.connect(self.onClickedNode)
 
         # 初始化nameko client
         self.initNameko()
@@ -652,8 +644,7 @@ class NamekoManWidget(QWidget):
         if not node or node.getType() != CONST_METHOD:
             alert("Please choose one method!")
             return
-        service, method, params = self.serviceEdit.text(), \
-                                  self.methodEdit.text(), self.paramsEdit.text()
+        service, method, params = self.serviceEdit.text(), self.methodEdit.text(), self.paramsEdit.text()
 
         logging.info("Send rpc start, waiting result......")
         try:
@@ -669,6 +660,16 @@ class NamekoManWidget(QWidget):
         result = dictToJsonStr(result)
         self.showResult(result)
         logging.info("Send rpc end:\n serivce:{}\n method:{}\n result:{}".format(service, method, result))
+
+    def onClickedNode(self, info):
+        """
+        显示鼠标选择节点数据
+        """
+        self.serviceEdit.setText(info.get(CONST_SERVICE, ""))
+        self.methodEdit.setText(info.get(CONST_METHOD, ""))
+        params = info.get(CONST_PARAMS, {})
+        if params is not None:
+            self.paramsEdit.setText(dictToJsonStr(params))
 
 
 def error_handler(etype, value, tb):
