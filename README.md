@@ -8,7 +8,7 @@ problem, system preferences->security and privacy->general, click allow to open 
 3. After completing the previous step, you can enter the /Application director to find namekoman, and right click
 to select show package, then enter Contents/Resources.You will find namekoman.json, you can edit it
 4. Namekoman successfully sends the request depends on rabbit mq. Please config broker, default broker: amqp://guest:guest@localhost
-5. Rpc timeout defaults to 10s. If the mouse pointer turns around after clicking the send button, please wait some seconds.
+5. Rpc timeout defaults to 10s.
 6. In the process of editing params, there will be a surprise if you can press cmd+r
 
 ## Requirements
@@ -24,11 +24,9 @@ pyinstaller -D -y -w namekoman.py
 - Analysis
 1. datas: specify the files that need to be packaged into app
 2. hiddenimports: specify additional dependent packages
-
 - BUNDLE
 1. icon: specify the app icon
 2. info_plist: app info
-
 ### Make app
 pyinstaller -D -y namekoman.spec
 
@@ -41,11 +39,11 @@ pyinstaller -D -y namekoman.spec
 3. 在做完上一步之后，可以进入/Applications目录找到namekoman，右键选择显示包内容，进入Contents/Resources，
 找到namekoman.json，可以对其进行编辑，以快速导入请求数据
 4. namekoman成功发送成功请求需依赖mq，本地请启动mq，之后需配置broker，默认broker：amqp://guest:guest@localhost
-5. rpc超时时间默认为10s，在点击发送按钮后如果鼠标指针出现转圈，请等待
+5. rpc超时时间默认为10s
 6. 编辑params过程中，按下cmd+r，会有惊喜
 7. 新建的service和method不建议输入中文，也不应该输入中文，可能会导致程序异常（这条待定）
 8. 有建议或有bug可以向我反馈
-9. TODO：1) app体积太大 2) 如果返回结果非常非常多，页面也会卡住
+9. TODO：1) app体积太大 2) 如果返回结果非常非常多，页面有可能会有一点卡顿
 10. 感谢
 ## 依赖
 - Python3.6
@@ -56,12 +54,13 @@ pyinstaller -D -y namekoman.spec
 ## 打包
 ### 生成spec文件
 pyinstaller -D -y -w namekoman.py
-
 ### 修改spec文件
-
-#### Analysis
-##### datas指定需要打包进app的文件，hiddenimports指定额外依赖的包
-- BUNDLE：icon指定图标，info_plist说明程序信息，可以按照git仓库的文件进行配置
+- Analysis
+1. datas指定需要打包进app的文件
+2. hiddenimports指定额外依赖的包
+- BUNDLE
+1. icon指定图标
+2. info_plist说明程序信息，可以按照git仓库的文件进行配置
 ### 生成app
 pyinstaller -D -y namekoman.spec
 
