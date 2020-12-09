@@ -1,8 +1,23 @@
 {
-    "address": {
-        "health_update": {
-            "health": {}
+    "order": {
+        "cart_module": {}
+    }, 
+    "user": {
+        "login_module": {
+            "login": {
+                "password": "admin", 
+                "user": "xiaoming"
+            }, 
+            "logout": {
+                "token": "forexample"
+            }
+        }, 
+        "password_module": {
+            "change_password": {
+                "new_password": "newadmin", 
+                "old_password": "oldadmin", 
+                "token": "forexample"
+            }
         }
-    },
-    "users": {}
+    }
 }
