@@ -10,7 +10,7 @@ import collections
 
 from nameko.cli.utils.config import setup_config
 from nameko.standalone.rpc import ClusterRpcClient
-from PyQt5.Qt import QStandardItem, QStandardItemModel, QPoint, QCursor
+from PyQt5.Qt import QStandardItem, QStandardItemModel, QPoint, QCursor, QIntValidator
 from PyQt5.QtCore import Qt as QtCoreQt, pyqtSignal, QThread, QObject
 from PyQt5.QtGui import QMouseEvent
 from PyQt5.Qsci import QsciScintilla, QsciLexerJSON
@@ -558,6 +558,7 @@ class NamekoManWidget(QWidget):
         self.timeoutEdit = QLineEdit(str(self.timeout))
         self.timeoutEdit.setPlaceholderText("Input timeout")
         self.timeoutEdit.setMaximumWidth(100)
+        self.timeoutEdit.setValidator(QIntValidator(1, 1000))
         self.sendButton = QPushButton(CONST_SEND_BUTTON_SEND_TEXT)
         self.serviceEdit = QLineEdit()
         self.serviceEdit.setFocusPolicy(QtCoreQt.NoFocus)
