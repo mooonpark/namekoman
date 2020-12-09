@@ -3,15 +3,15 @@
 import os
 import sys
 import json
+import time
 import logging
 import traceback
 import collections
 
 from nameko.cli.utils.config import setup_config
 from nameko.standalone.rpc import ClusterRpcClient
-
 from PyQt5.Qt import QStandardItem, QStandardItemModel, QPoint, QCursor
-from PyQt5.QtCore import Qt as QtCoreQt, pyqtSignal
+from PyQt5.QtCore import Qt as QtCoreQt, pyqtSignal, QThread, QObject
 from PyQt5.QtGui import QMouseEvent
 from PyQt5.Qsci import QsciScintilla, QsciLexerJSON
 from PyQt5.QtWidgets import (QWidget, QTreeView, QPushButton, QLineEdit, QPlainTextEdit,
@@ -32,6 +32,9 @@ CONST_TIMEOUT = 10
 CONST_BROKER = "amqp://guest:guest@localhost"
 CONST_SERVICE_INPUT = "properties"
 CONST_METHOD_INPUT = "page_bed_status"
+CONST_SEND_BUTTON_SEND_TEXT = "Send"
+CONST_SEND_BUTTON_WAIT_TEXT = "Waiting Result..."
+MAX_LENGTH = 50000   # qlabel显示太长的字符串会导致界面卡主
 AMQP_URI_CONFIG_KEY = "AMQP_URI"
 
 
@@ -53,6 +56,7 @@ README = """
 2. 将应用复制进/Applications文件夹，选中app右键选择显示包内容，进入Contents/Resources，可以编辑namekoman.json
 3. rpc超时时间默认为{}s
 4. 填写params时，按下cmd+r，会有惊喜
+5. 代码：https://github.com/mooonpark/namekoman
 """.format(CONST_TIMEOUT)
 
 
@@ -60,8 +64,8 @@ def getAMQPConfig(broker):
     return {AMQP_URI_CONFIG_KEY: broker}
 
 
-def dictToJsonStr(dataDict):
-    return json.dumps(dataDict,
+def objectToJsonStr(obj) -> str:
+    return json.dumps(obj,
                       sort_keys=True,
                       indent=4,
                       separators=(", ", ": "),
@@ -69,17 +73,21 @@ def dictToJsonStr(dataDict):
                       )
 
 
-def strToJsonStr(dictStr):
+def strToJsonStr(s: str) -> str:
     try:
-        return dictToJsonStr(json.loads(dictStr))
+        return objectToJsonStr(json.loads(s))
     except:
-        return dictStr.replace("'", '"').replace("：", ":")\
+        return s.replace("'", '"').replace("：", ":")\
             .replace("“", '"').replace("”", '"').replace("，", ",")\
             .replace("【", "[").replace("】", "]")
 
 
-def errorToJsonStr(error):
-    return dictToJsonStr(dict(error=error))
+def errorToDict(errorStr: str) -> dict:
+    return dict(error=errorStr)
+
+
+def errorToJsonStr(errorStr: str) -> str:
+    return objectToJsonStr(errorToDict(errorStr))
 
 
 def alert(text: str):
@@ -89,15 +97,19 @@ def alert(text: str):
     box.exec_()
 
 
-class QTextEditLogger(logging.Handler):
+class QTextEditLogger(logging.Handler, QObject):
+    logSignal = pyqtSignal(str)
+
     def __init__(self, parent):
         super().__init__()
+        QObject.__init__(self)
         self.widget = QPlainTextEdit(parent)
         self.widget.setReadOnly(True)
+        self.logSignal.connect(self.widget.appendPlainText)
 
     def emit(self, record):
         msg = self.format(record)
-        self.widget.appendPlainText(msg)
+        self.logSignal.emit(msg)
 
 
 class Storage(object):
@@ -111,20 +123,21 @@ class Storage(object):
     def loadData(self):
         try:
             with open(self.path) as f:
-                return collections.OrderedDict(json.loads(f.read(), object_pairs_hook=collections.OrderedDict))
+                return collections.OrderedDict(json.loads(f.read()))
+                # return collections.OrderedDict(json.loads(f.read(), object_hook=collections.OrderedDict))
         except Exception as e:
             logging.exception(e)
             return collections.OrderedDict()
 
     def save(self):
         with open(self.path, "w", encoding="utf-8") as f:
-            f.write(dictToJsonStr(self.data))
+            f.write(objectToJsonStr(self.data))
 
     def getData(self):
         return self.data
 
     def loggingData(self):
-        logging.info("Storage data: {}".format(dictToJsonStr(self.getData())))
+        logging.info("Storage data: {}".format(objectToJsonStr(self.getData())))
 
     def updateServiceName(self, old, new):
         if old != new:
@@ -247,7 +260,7 @@ class TreeNode(QStandardItem):
             CONST_PARAMS: self.getParams(),
             CONST_TYPE: self.getType()
         }
-        logging.info("TreeNode info: {}".format(dictToJsonStr(info)))
+        logging.info("TreeNode info: {}".format(objectToJsonStr(info)))
         return info
 
     def getName(self):
@@ -305,13 +318,13 @@ class TreeNode(QStandardItem):
         else:
             return collections.OrderedDict()
 
+    def getParent(self):
+        return self.parent()
+
     def loggingInfo(self):
         logging.info("TreeNode type: {}, service: {}, module:{}, method: {}".format(
             self.getType(), self.getServiceName(), self.getModuleName(), self.getMethodName()
         ))
-
-    def getParent(self):
-        return self.parent()
 
 
 class FolderTreeView(QTreeView):
@@ -396,6 +409,8 @@ class FolderWidget(QWidget):
         elif self.clickedItem.getType() == CONST_SERVICE:
             action = menu.addAction("add module")
             action.triggered.connect(self.onAddModule)
+            action = menu.addAction("add service")
+            action.triggered.connect(self.onAddService)
             action = menu.addAction("rename")
             action.triggered.connect(self.onRename)
         elif self.clickedItem.getType() == CONST_MODULE:
@@ -437,8 +452,7 @@ class FolderWidget(QWidget):
                 alert("Input has one, please change one!")
                 return
             node = self.newServiceNode(name)
-            if self.clickedItem is None:
-                self.treeView.addRootItem(node)
+            self.treeView.addRootItem(node)
 
     def onAddModule(self):
         name, ok = QInputDialog.getText(self, "⌨️", "Please enter module name")
@@ -503,6 +517,40 @@ class NamekoManQsciScintilla(QsciScintilla):
             super().keyPressEvent(event)
 
 
+class SendRpcThread(QThread):
+    """
+    发送rpc用线程处理，防止阻塞主线程
+    """
+    finishSignal = pyqtSignal(str)
+
+    def __init__(self, client: ClusterRpcClient, service: str, method: str, params: dict):
+        self.client, self.service, self.method, self.params = client, service, method, params
+        super().__init__()
+
+    def run(self):
+        start = time.time()
+        logging.info("Send rpc start, service: {}, method: {}, params: {}, waiting result......".format(self.service,
+                                                                                                        self.method,
+                                                                                                        self.params
+                                                                                                        )
+                     )
+        try:
+            result = getattr(getattr(self.client, self.service), self.method)(**self.params)
+        except Exception as e:
+            result = errorToDict(repr(e))
+            logging.exception(e)
+
+        end = time.time()
+        result = objectToJsonStr(result)
+        logging.info("Send rpc end, time: {}, service: {}, method: {}, result: {}".format(end-start,
+                                                                                          self.service,
+                                                                                          self.method,
+                                                                                          result
+                                                                                          )
+                     )
+        self.finishSignal.emit(result)
+
+
 class NamekoManWidget(QWidget):
     RPC = "rpc"
 
@@ -515,7 +563,7 @@ class NamekoManWidget(QWidget):
         self.timeoutEdit = QLineEdit(str(self.timeout))
         self.timeoutEdit.setPlaceholderText("Input timeout")
         self.timeoutEdit.setMaximumWidth(100)
-        self.sendButton = QPushButton("Send")
+        self.sendButton = QPushButton(CONST_SEND_BUTTON_SEND_TEXT)
         self.serviceEdit = QLineEdit()
         self.serviceEdit.setFocusPolicy(QtCoreQt.NoFocus)
         self.serviceEdit.setPlaceholderText("Input service name, for example: {}".format(CONST_SERVICE_INPUT))
@@ -583,7 +631,9 @@ class NamekoManWidget(QWidget):
         # 初始化nameko client
         self.initNameko()
 
-    def showResult(self, result):
+        self.rpcThread = None
+
+    def showResult(self, result: str):
         # 为了显示居中，用2个空格替换1个空格
         self.resultLabel.setText(result.replace(" ", "  "))
         self.resultLabel.repaint()
@@ -633,8 +683,27 @@ class NamekoManWidget(QWidget):
             self.showResult(errorToJsonStr(repr(e)))
             logging.exception(e)
 
-    def onSendRpc(self):
+    def lockSendButton(self):
+        self.sendButton.setDisabled(True)
+        self.sendButton.setText(CONST_SEND_BUTTON_WAIT_TEXT)
+        self.sendButton.repaint()
 
+    def unlockSendButton(self):
+        self.sendButton.setDisabled(False)
+        self.sendButton.setText(CONST_SEND_BUTTON_SEND_TEXT)
+        self.sendButton.repaint()
+
+    def onClickedNode(self, info):
+        """
+        显示鼠标选择节点数据
+        """
+        self.serviceEdit.setText(info.get(CONST_SERVICE, ""))
+        self.methodEdit.setText(info.get(CONST_METHOD, ""))
+        params = info.get(CONST_PARAMS, {})
+        if params is not None:
+            self.paramsEdit.setText(objectToJsonStr(params))
+
+    def onSendRpc(self):
         self.initNameko()
 
         if not self.hasNamekoClient():
@@ -646,30 +715,23 @@ class NamekoManWidget(QWidget):
             return
         service, method, params = self.serviceEdit.text(), self.methodEdit.text(), self.paramsEdit.text()
 
-        logging.info("Send rpc start, waiting result......")
         try:
-
             params = json.loads(params)
-            result = getattr(getattr(getattr(self, self.RPC), service), method)(**params)
-            node.updateParams(params)
+            self.lockSendButton()
+            self.rpcThread = SendRpcThread(getattr(self, self.RPC), service, method, params)
+            self.rpcThread.finishSignal.connect(self.onSendRpcFinished)
+            self.rpcThread.start()
         except Exception as e:
             self.showResult(errorToJsonStr(repr(e)))
-            node.updateParams(params)
-            logging.exception(e)
-            return
-        result = dictToJsonStr(result)
-        self.showResult(result)
-        logging.info("Send rpc end:\n serivce:{}\n method:{}\n result:{}".format(service, method, result))
 
-    def onClickedNode(self, info):
-        """
-        显示鼠标选择节点数据
-        """
-        self.serviceEdit.setText(info.get(CONST_SERVICE, ""))
-        self.methodEdit.setText(info.get(CONST_METHOD, ""))
-        params = info.get(CONST_PARAMS, {})
-        if params is not None:
-            self.paramsEdit.setText(dictToJsonStr(params))
+        node.updateParams(params)
+
+    def onSendRpcFinished(self, result: str):
+        if len(result) > MAX_LENGTH:
+            result = result[:MAX_LENGTH]
+            result += "...... sorry, result too long and see log for detail"
+        self.showResult(result)
+        self.unlockSendButton()
 
 
 def error_handler(etype, value, tb):
@@ -679,6 +741,7 @@ def error_handler(etype, value, tb):
 
 if __name__ == "__main__":
     sys.excepthook = error_handler
+
     app = QApplication([])
     widget = NamekoManWidget()
     widget.resize(1200, 800)
