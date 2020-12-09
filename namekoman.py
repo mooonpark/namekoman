@@ -529,11 +529,9 @@ class SendRpcThread(QThread):
 
     def run(self):
         start = time.time()
-        logging.info("Send rpc start, service: {}, method: {}, params: {}, waiting result......".format(self.service,
-                                                                                                        self.method,
-                                                                                                        self.params
-                                                                                                        )
-                     )
+        logging.info("Send rpc start, service: {}, method: {}, params: {}, waiting result......".format(
+            self.service, self.method, self.params
+        ))
         try:
             result = getattr(getattr(self.client, self.service), self.method)(**self.params)
         except Exception as e:
@@ -542,12 +540,9 @@ class SendRpcThread(QThread):
 
         end = time.time()
         result = objectToJsonStr(result)
-        logging.info("Send rpc end, time: {}, service: {}, method: {}, result: {}".format(end-start,
-                                                                                          self.service,
-                                                                                          self.method,
-                                                                                          result
-                                                                                          )
-                     )
+        logging.info("Send rpc end, calling time: {}, service: {}, method: {}, params:{}, result: {}".format(
+            end-start, self.service, self.method, objectToJsonStr(self.params), result
+        ))
         self.finishSignal.emit(result)
 
 
