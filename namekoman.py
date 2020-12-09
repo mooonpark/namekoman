@@ -729,7 +729,7 @@ class NamekoManWidget(QWidget):
     def onSendRpcFinished(self, result: str):
         if len(result) > MAX_LENGTH:
             result = result[:MAX_LENGTH]
-            result += "...... sorry, result too long and see log for detail"
+            result += "...... Sorry, the result is too long. Please check the log for whole result."
         self.showResult(result)
         self.unlockSendButton()
 
