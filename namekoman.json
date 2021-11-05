@@ -2,36 +2,36 @@
     "project1": {
         "order_service": {
             "cart_module": {}
-        }, 
+        },
         "user_service": {
             "login_module": {
                 "login_method": {
                     "params": {
-                        "password": "admin", 
+                        "password": "admin",
                         "user": "xiaoming"
-                    }, 
+                    },
                     "result": {
                         "success": true
                     }
-                }, 
+                },
                 "logout_method": {
                     "params": {
                         "token": "forexample"
-                    }, 
+                    },
                     "result": {}
                 }
-            }, 
+            },
             "password_module": {
                 "change_password_method": {
                     "params": {
-                        "new_password": "newadmin", 
-                        "old_password": "oldadmin", 
+                        "new_password": "newadmin",
+                        "old_password": "oldadmin",
                         "token": "forexample"
-                    }, 
+                    },
                     "result": {}
                 }
             }
         }
-    }, 
+    },
     "project2": {}
 }
