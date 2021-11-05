@@ -1,23 +1,37 @@
 {
-    "order": {
-        "cart_module": {}
-    }, 
-    "user": {
-        "login_module": {
-            "login": {
-                "password": "admin", 
-                "user": "xiaoming"
-            }, 
-            "logout": {
-                "token": "forexample"
-            }
+    "project1": {
+        "order_service": {
+            "cart_module": {}
         }, 
-        "password_module": {
-            "change_password": {
-                "new_password": "newadmin", 
-                "old_password": "oldadmin", 
-                "token": "forexample"
+        "user_service": {
+            "login_module": {
+                "login_method": {
+                    "params": {
+                        "password": "admin", 
+                        "user": "xiaoming"
+                    }, 
+                    "result": {
+                        "success": true
+                    }
+                }, 
+                "logout_method": {
+                    "params": {
+                        "token": "forexample"
+                    }, 
+                    "result": {}
+                }
+            }, 
+            "password_module": {
+                "change_password_method": {
+                    "params": {
+                        "new_password": "newadmin", 
+                        "old_password": "oldadmin", 
+                        "token": "forexample"
+                    }, 
+                    "result": {}
+                }
             }
         }
-    }
+    }, 
+    "project2": {}
 }

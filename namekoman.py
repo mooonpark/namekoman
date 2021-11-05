@@ -14,28 +14,14 @@ from PyQt5.Qt import QStandardItem, QStandardItemModel, QPoint, QCursor, QIntVal
 from PyQt5.QtCore import Qt as QtCoreQt, pyqtSignal, QThread, QObject
 from PyQt5.QtGui import QMouseEvent
 from PyQt5.Qsci import QsciScintilla, QsciLexerJSON
-from PyQt5.QtWidgets import (QWidget, QTreeView, QPushButton, QLineEdit, QPlainTextEdit,
-                             QLabel, QGridLayout, QApplication, QBoxLayout,
-                             QInputDialog, QMessageBox, QMenu, QScrollArea
-                             )
-
-# 防止未处理的异常导致app崩溃
-# import cgitb
-# cgitb.enable(format="text")
-
-CONST_TYPE = "type"
-CONST_SERVICE = "service"
-CONST_METHOD = "method"
-CONST_MODULE = "module"
-CONST_PARAMS = "params"
-CONST_TIMEOUT = 10
-CONST_BROKER = "amqp://guest:guest@localhost"
-CONST_SERVICE_INPUT = "properties"
-CONST_METHOD_INPUT = "page_bed_status"
-CONST_SEND_BUTTON_SEND_TEXT = "Send"
-CONST_SEND_BUTTON_WAIT_TEXT = "Waiting Result..."
-MAX_LENGTH = 50000   # qlabel显示太长的字符串会导致界面卡主
-AMQP_URI_CONFIG_KEY = "AMQP_URI"
+from PyQt5.QtWidgets import (
+    QWidget, QTreeView, QPushButton, QLineEdit, QPlainTextEdit,
+    QLabel, QGridLayout, QApplication, QBoxLayout,
+    QInputDialog, QMessageBox, QMenu, QScrollArea
+)
+import utils
+import constants as const
+from storage import Storage
 
 
 def getFilePath(filepath):
@@ -43,51 +29,14 @@ def getFilePath(filepath):
     return os.path.join(os.path.dirname(sys.argv[0]), filepath)
 
 
-def readFile(filePath):
-    with open(filePath) as f:
-        return f.read()
+DATA_FILE_PATH = getFilePath("namekoman.json")
 
+storage = Storage(DATA_FILE_PATH)
 
-CONST_DATA_FILE_PATH = getFilePath("namekoman.json")
-
-README = """
-1. namekoman类似于postman，是为了解决使用nameko shell发送请求麻烦的问题。打开如遇权限问题，系统偏好设置->安全性与隐私->通用，点击允许。
-按下右键可以添加服务，服务下可以新建模块，模块下可以添加方法，数据会存储在namekoman.json文件中
-2. 将应用复制进/Applications文件夹，选中app右键选择显示包内容，进入Contents/Resources，可以编辑namekoman.json
-3. rpc超时时间默认为{}s
-4. 填写params时，按下cmd+r，会有惊喜
-5. 代码：https://github.com/mooonpark/namekoman
-""".format(CONST_TIMEOUT)
 
 
 def getAMQPConfig(broker):
-    return {AMQP_URI_CONFIG_KEY: broker}
-
-
-def objectToJsonStr(obj) -> str:
-    return json.dumps(obj,
-                      sort_keys=True,
-                      indent=4,
-                      separators=(", ", ": "),
-                      ensure_ascii=False
-                      )
-
-
-def strToJsonStr(s: str) -> str:
-    try:
-        return objectToJsonStr(json.loads(s))
-    except:
-        return s.replace("'", '"').replace("：", ":")\
-            .replace("“", '"').replace("”", '"').replace("，", ",")\
-            .replace("【", "[").replace("】", "]")
-
-
-def errorToDict(errorStr: str) -> dict:
-    return dict(error=errorStr)
-
-
-def errorToJsonStr(errorStr: str) -> str:
-    return objectToJsonStr(errorToDict(errorStr))
+    return {const.AMQP_URI_CONFIG_KEY: broker}
 
 
 def alert(text: str):
@@ -112,116 +61,18 @@ class QTextEditLogger(logging.Handler, QObject):
         self.logSignal.emit(msg)
 
 
-class Storage(object):
-    """
-    数据存储类
-    """
-    def __init__(self, path):
-        self.path = path
-        self.data = self.loadData()
-
-    def loadData(self):
-        try:
-            with open(self.path) as f:
-                return collections.OrderedDict(json.loads(f.read()))
-                # return collections.OrderedDict(json.loads(f.read(), object_hook=collections.OrderedDict))
-        except Exception as e:
-            logging.exception(e)
-            return collections.OrderedDict()
-
-    def save(self):
-        with open(self.path, "w", encoding="utf-8") as f:
-            f.write(objectToJsonStr(self.data))
-
-    def getData(self):
-        return self.data
-
-    def loggingData(self):
-        logging.info("Storage data: {}".format(objectToJsonStr(self.getData())))
-
-    def updateServiceName(self, old, new):
-        if old != new:
-            if new in self.data:
-                return False
-            if old in self.data:
-                self.data[new] = self.data[old]
-                del self.data[old]
-                self.save()
-        return True
-
-    def updateModuleName(self, service, old, new):
-        if old != new:
-            try:
-                if new in self.data[service]:
-                    return False
-                self.data[service][new] = self.data[service][old]
-                del self.data[service][old]
-                self.save()
-            except Exception as e:
-                logging.exception(e)
-                return False
-        return True
-
-    def updateMethodName(self, service, module, old, new):
-        if old != new:
-            try:
-                if new in self.data[service][module]:
-                    return False
-                self.data[service][module][new] = self.data[service][module][old]
-                del self.data[service][module][old]
-                self.save()
-            except Exception as e:
-                logging.exception(e)
-                return False
-        return True
-
-    def updateParams(self, service, module, method, params):
-        if service in self.data and module in self.data[service]:
-            self.data[service][module][method] = params if isinstance(params, dict) else dict()
-            self.save()
-
-    def addService(self, service):
-        if service in self.data:
-            return False
-        self.data[service] = dict()
-        self.save()
-        return True
-
-    def addModule(self, service, module):
-        if service in self.data and module in self.data[service]:
-            return False
-        self.data[service][module] = dict()
-        self.save()
-        return True
-
-    def addMethod(self, service, module, method, params):
-        if service in self.data and module in self.data[service] and method in self.data[service][module]:
-            return False
-        self.data[service][module][method] = params if params else dict()
-        self.save()
-        return True
-
-    def getParam(self, service, module, method):
-        try:
-            return self.data[service][module][method]
-        except Exception as e:
-            logging.exception(e)
-            return collections.OrderedDict()
-
-
-storage = Storage(CONST_DATA_FILE_PATH)
-
-
 class TreeNode(QStandardItem):
     """
-    节点有两种类型
+    节点类型
+    project节点：项目
     service节点：服务，service节点service，module，method相同
     module节点：模块，一个service可以根据业务分为模块，模块的module和method相同
     method节点：方法，一个module下有对个rpc方法
     """
-    def __init__(self, *args, nodeType, service, module, method, **kwargs):
+    def __init__(self, *args, nodeType, project, service, module, method, **kwargs):
 
         self.setType(nodeType)
+        self.setProjectName(project)
         self.setServiceName(service)
         self.setModuleName(module)
         self.setMethodName(method)
@@ -234,11 +85,11 @@ class TreeNode(QStandardItem):
     def getType(self):
         return self.nodeType
 
-    def getModuleName(self):
-        return self.module
+    def setProjectName(self, project):
+        self.project = project
 
-    def setModuleName(self, module):
-        self.module = module
+    def getProjectName(self):
+        return self.project
 
     def getServiceName(self):
         return self.service
@@ -246,29 +97,76 @@ class TreeNode(QStandardItem):
     def setServiceName(self, service):
         self.service = service
 
+    def getModuleName(self):
+        return self.module
+
+    def setModuleName(self, module):
+        self.module = module
+
     def getMethodName(self):
         return self.method
 
     def setMethodName(self, method):
         self.method = method
 
+    def updateParams(self, params):
+        storage.updateParams(self.project, self.service, self.module, self.method, params)
+
+    def getParams(self):
+        if self.getType() == const.NODE_METHOD:
+            return storage.getParam(self.project, self.service, self.module, self.method)
+        else:
+            return collections.OrderedDict()
+
+    def getResult(self):
+        if self.getType() == const.NODE_METHOD:
+            return storage.getResult(self.project, self.service, self.module, self.method)
+        else:
+            return collections.OrderedDict()
+
     def getNodeInfo(self):
         info = {
-            CONST_SERVICE: self.service,
-            CONST_MODULE: self.module,
-            CONST_METHOD: self.method,
-            CONST_PARAMS: self.getParams(),
-            CONST_TYPE: self.getType()
+            const.NODE_PROJECT: self.project,
+            const.NODE_SERVICE: self.service,
+            const.NODE_MODULE: self.module,
+            const.NODE_METHOD: self.method,
+            const.PARAMS: self.getParams(),
+            const.RESULT: self.getResult(),
+            const.NODE_TYPE: self.getType()
         }
-        logging.info("TreeNode info: {}".format(objectToJsonStr(info)))
+        logging.info("TreeNode info: {}".format(utils.objectToJsonStr(info)))
         return info
 
     def getName(self):
         return self.getNodeInfo()[self.getType()]
 
     def updateName(self, name):
-        if self.getType() == CONST_SERVICE:
-            flag = storage.updateServiceName(self.service, name)
+        if self.getType() == const.NODE_PROJECT:
+            flag = storage.updateProjectName(self.project, name)
+            if not flag:
+                return False
+            self.setProjectName(name)
+            self.setServiceName(name)
+            self.setModuleName(name)
+            self.setMethodName(name)
+
+            index = 0
+            while self.child(index):
+                serviceNode = self.child(index)
+                serviceNode.setProjectName(name)
+                index2 = 0
+                while serviceNode.child(index2):
+                    moduleNode = serviceNode.child(index2)
+                    moduleNode.setProjectName(name)
+                    index3 = 0
+                    while moduleNode.child(index3):
+                        methodNode = moduleNode.child(index3)
+                        methodNode.setServiceName(name)
+                        index3 += 1
+                    index2 += 1
+                index += 1
+        elif self.getType() == const.NODE_SERVICE:
+            flag = storage.updateServiceName(self.project, self.service, name)
             if not flag:
                 return False
             self.setServiceName(name)
@@ -286,8 +184,8 @@ class TreeNode(QStandardItem):
                     methodNode.setServiceName(name)
                     index2 += 1
                 index += 1
-        elif self.getType() == CONST_MODULE:
-            flag = storage.updateModuleName(self.service, self.module, name)
+        elif self.getType() == const.NODE_MODULE:
+            flag = storage.updateModuleName(self.project, self.service, self.module, name)
             if not flag:
                 return False
             self.setModuleName(name)
@@ -300,7 +198,7 @@ class TreeNode(QStandardItem):
                 childNode.setModuleName(name)
                 index += 1
         else:
-            flag = storage.updateMethodName(self.service, self.module, self.method, name)
+            flag = storage.updateMethodName(self.project, self.service, self.module, self.method, name)
             if not flag:
                 return False
             self.setMethodName(name)
@@ -309,22 +207,15 @@ class TreeNode(QStandardItem):
         self.loggingInfo()
         return True
 
-    def updateParams(self, params):
-        storage.updateParams(self.service, self.module, self.method, params)
-
-    def getParams(self):
-        if self.getType() == CONST_METHOD:
-            return storage.getParam(self.service, self.module, self.method)
-        else:
-            return collections.OrderedDict()
-
     def getParent(self):
         return self.parent()
 
     def loggingInfo(self):
-        logging.info("TreeNode type: {}, service: {}, module:{}, method: {}".format(
-            self.getType(), self.getServiceName(), self.getModuleName(), self.getMethodName()
-        ))
+        logging.info(
+            "TreeNode type: {}, service: {}, module:{}, method: {}".format(
+                self.getType(), self.getServiceName(), self.getModuleName(), self.getMethodName()
+            )
+        )
 
 
 class FolderTreeView(QTreeView):
@@ -386,34 +277,53 @@ class FolderWidget(QWidget):
         """
         从文件读取数据，初始化文件夹树
         """
-        data = storage.getData()
+        data = storage.loadData()
         if data:
-            for service, serviceDict in data.items():
-                serviceNode = self.newServiceNode(service)
-                for module, moduleDict in serviceDict.items():
-                    moduleNode = self.newModuleNode(service, module)
-                    serviceNode.appendRow(moduleNode)
-                    for method, methodDict in moduleDict.items():
-                        methodNode = self.newMethodNode(service, module, method)
-                        moduleNode.appendRow(methodNode)
-                self.treeView.addRootItem(serviceNode)
+            for project, projectDict in data.items():
+                projectNode = self.newProjectNode(project)
+                for service, serviceDict in projectDict.items():
+                    serviceNode = self.newServiceNode(project, service)
+                    projectNode.appendRow(serviceNode)
+                    for module, moduleDict in serviceDict.items():
+                        moduleNode = self.newModuleNode(project, service, module)
+                        serviceNode.appendRow(moduleNode)
+                        for method, methodDict in moduleDict.items():
+                            methodNode = self.newMethodNode(project, service, module, method)
+                            moduleNode.appendRow(methodNode)
+                self.treeView.addRootItem(projectNode)
             self.treeView.expandAll()
+
+        # if data:
+        #     for service, serviceDict in data.items():
+        #         serviceNode = self.newServiceNode(service)
+        #         for module, moduleDict in serviceDict.items():
+        #             moduleNode = self.newModuleNode(service, module)
+        #             serviceNode.appendRow(moduleNode)
+        #             for method, methodDict in moduleDict.items():
+        #                 methodNode = self.newMethodNode(service, module, method)
+        #                 moduleNode.appendRow(methodNode)
+        #         self.treeView.addRootItem(serviceNode)
+        #     self.treeView.expandAll()
 
     def showContextMenu(self, pos: QPoint):
         self.clickedItem = self.treeView.getNodeByPos(pos)
+        self.treeView.currentIndex()
 
         menu = QMenu(self)
         if self.clickedItem is None:
-            action = menu.addAction("add service")
-            action.triggered.connect(self.onAddService)
-        elif self.clickedItem.getType() == CONST_SERVICE:
-            action = menu.addAction("add module")
-            action.triggered.connect(self.onAddModule)
+            action = menu.addAction("add project")
+            action.triggered.connect(self.onAddProject)
+        elif self.clickedItem.getType() == const.NODE_PROJECT:
             action = menu.addAction("add service")
             action.triggered.connect(self.onAddService)
             action = menu.addAction("rename")
             action.triggered.connect(self.onRename)
-        elif self.clickedItem.getType() == CONST_MODULE:
+        elif self.clickedItem.getType() == const.NODE_SERVICE:
+            action = menu.addAction("add module")
+            action.triggered.connect(self.onAddModule)
+            action = menu.addAction("rename")
+            action.triggered.connect(self.onRename)
+        elif self.clickedItem.getType() == const.NODE_MODULE:
             action = menu.addAction("add method")
             action.triggered.connect(self.onAddMethod)
             action = menu.addAction("rename")
@@ -421,18 +331,24 @@ class FolderWidget(QWidget):
         else:
             action = menu.addAction("rename")
             action.triggered.connect(self.onRename)
+            action = menu.addAction("delete")
+            action.triggered.connect(self.onDeleteMethod)
         menu.exec_(QCursor.pos())
 
-    def newServiceNode(self, service) -> TreeNode:
-        node = TreeNode(service, nodeType=CONST_SERVICE, service=service, module=service, method=service)
+    def newProjectNode(self, project) -> TreeNode:
+        node = TreeNode(project, nodeType=const.NODE_PROJECT, project=project, service=project, module=project, method=project)
         return node
 
-    def newModuleNode(self, service, module) -> TreeNode:
-        node = TreeNode(module, nodeType=CONST_MODULE, service=service, module=module, method=module)
+    def newServiceNode(self, project, service) -> TreeNode:
+        node = TreeNode(service, nodeType=const.NODE_SERVICE, project=project, service=service, module=service, method=service)
         return node
 
-    def newMethodNode(self, service, module, method) -> TreeNode:
-        node = TreeNode(method, nodeType=CONST_METHOD, service=service, module=module, method=method)
+    def newModuleNode(self, project, service, module) -> TreeNode:
+        node = TreeNode(module, nodeType=const.NODE_MODULE, project=project, service=service, module=module, method=module)
+        return node
+
+    def newMethodNode(self, project, service, module, method) -> TreeNode:
+        node = TreeNode(method, nodeType=const.NODE_METHOD, project=project, service=service, module=module, method=method)
         return node
 
     def onTreeNodeClicked(self, modelIndex):
@@ -442,17 +358,32 @@ class FolderWidget(QWidget):
         node = self.treeView.model().itemFromIndex(modelIndex)
         self.clickNodeSingal.emit(node.getNodeInfo())
 
+    def onAddProject(self):
+        name, ok = QInputDialog.getText(self, "⌨️", "Please enter project name")
+        if ok:
+            if name == "":
+                alert("Project name is empty!")
+                return
+            if not storage.addProject(name):
+                alert("Input has one, please change one!")
+                return
+            node = self.newProjectNode(name)
+            self.treeView.addRootItem(node)
+            logging.info(f"Add project {name} success")
+
     def onAddService(self):
         name, ok = QInputDialog.getText(self, "⌨️", "Please enter service name")
         if ok:
             if name == "":
                 alert("Service name is empty!")
                 return
-            if not storage.addService(name):
+            project = self.clickedItem.getName()
+            if not storage.addService(project, name):
                 alert("Input has one, please change one!")
                 return
-            node = self.newServiceNode(name)
-            self.treeView.addRootItem(node)
+            node = self.newServiceNode(project, name)
+            self.clickedItem.appendRow(node)
+            logging.info(f"Add service {name} success")
 
     def onAddModule(self):
         name, ok = QInputDialog.getText(self, "⌨️", "Please enter module name")
@@ -460,12 +391,15 @@ class FolderWidget(QWidget):
             if name == "":
                 alert("Module name is empty!")
                 return
+
+            project = self.clickedItem.getParent().getName()
             service = self.clickedItem.getName()
-            if not storage.addModule(service, name):
+            if not storage.addModule(project, service, name):
                 alert("Input has one, please change one!")
                 return
-            node = self.newModuleNode(service, name)
+            node = self.newModuleNode(project, service, name)
             self.clickedItem.appendRow(node)
+            logging.info(f"Add module {name} success")
 
     def onAddMethod(self):
         name, ok = QInputDialog.getText(self, "⌨️", "Please enter method name")
@@ -473,15 +407,17 @@ class FolderWidget(QWidget):
             if name == "":
                 alert("Method name is empty!")
                 return
+            project = self.clickedItem.getParent().getParent().getName()
             service = self.clickedItem.getParent().getName()
             module = self.clickedItem.getName()
 
-            if not storage.addMethod(service, module, name, None):
+            if not storage.addMethod(project, service, module, name, None):
                 alert("Input has one, please change one!")
                 return
 
-            node = self.newMethodNode(service, module, name)
+            node = self.newMethodNode(project, service, module, name)
             self.clickedItem.appendRow(node)
+            logging.info(f"Add method {name} success")
 
     def onRename(self):
         msg = "Please enter new name"
@@ -495,11 +431,18 @@ class FolderWidget(QWidget):
                 alert("Input has one, please change one!")
                 return
             info = {
-                CONST_SERVICE: self.clickedItem.getServiceName(),
-                CONST_METHOD: name,
-                CONST_PARAMS: None
+                const.NODE_SERVICE: self.clickedItem.getServiceName(),
+                const.NODE_METHOD: name,
+                const.PARAMS: None
             }
             self.clickNodeSingal.emit(info)
+
+    def onDeleteMethod(self):
+        node = self.getCurrentClickedNode()
+        parent = node.getParent()
+        self.treeView.model().removeRow(node.row(), parent.index())
+        storage.deleteMethod(node.getServiceName(), node.getModuleName(), node.getMethodName())
+        logging.info(f"Delete method {node.getMethodName()} success")
 
 
 class NamekoManQsciScintilla(QsciScintilla):
@@ -512,7 +455,7 @@ class NamekoManQsciScintilla(QsciScintilla):
         监听cmd + r 按键事件
         """
         if event.modifiers() == QtCoreQt.ControlModifier and event.key() == QtCoreQt.Key_R:
-            self.setText(strToJsonStr(self.text()))
+            self.setText(utils.strToJsonStr(self.text()))
         else:
             super().keyPressEvent(event)
 
@@ -523,27 +466,41 @@ class SendRpcThread(QThread):
     """
     finishSignal = pyqtSignal(str)
 
-    def __init__(self, client: ClusterRpcClient, service: str, method: str, params: dict):
-        self.client, self.service, self.method, self.params = client, service, method, params
+    def __init__(self, client: ClusterRpcClient, project: str, service: str, module: str, method: str, params: dict):
+        self.client = client
+        self.project, self.service, self.module, self.method, self.params = project, service, module, method, params
         super().__init__()
 
     def run(self):
         start = time.time()
-        logging.info("Send rpc start, service: {}, method: {}, params: {}, waiting result......".format(
-            self.service, self.method, self.params
-        ))
+        logging.info(
+            "Send rpc start, service: {}, method: {}, params: {}, waiting result......".format(
+                self.service, self.method, self.params
+            )
+        )
         try:
             result = getattr(getattr(self.client, self.service), self.method)(**self.params)
         except Exception as e:
-            result = errorToDict(repr(e))
+            result = utils.errorToDict(repr(e))
             logging.exception(e)
 
+        data = {
+            const.NODE_PROJECT: self.project,
+            const.NODE_SERVICE: self.service,
+            const.NODE_MODULE: self.module,
+            const.NODE_METHOD: self.method,
+            const.PARAMS: self.params,
+            const.RESULT: result,
+        }
         end = time.time()
-        result = objectToJsonStr(result)
-        logging.info("Send rpc end, calling time: {}, service: {}, method: {}, params:{}, result: {}".format(
-            end-start, self.service, self.method, objectToJsonStr(self.params), result
-        ))
-        self.finishSignal.emit(result)
+        data = utils.objectToJsonStr(data)
+        logging.info(
+            "Send rpc end, calling time: {}, project: {}, service: {}, method: {}, params:{}, result: {}".format(
+                end-start, self.project, self.service, self.method, utils.objectToJsonStr(self.params), utils.objectToJsonStr(result)
+            )
+        )
+
+        self.finishSignal.emit(data)
 
 
 class NamekoManWidget(QWidget):
@@ -551,22 +508,22 @@ class NamekoManWidget(QWidget):
 
     def __init__(self):
         super().__init__()
-        self.broker = CONST_BROKER
+        self.broker = const.BROKER
         self.brokerEdit = QLineEdit(self.broker)
-        self.brokerEdit.setPlaceholderText("Input mq broker, for example: {}".format(CONST_BROKER))
-        self.timeout = CONST_TIMEOUT
+        self.brokerEdit.setPlaceholderText("Input mq broker, for example: {}".format(const.BROKER))
+        self.timeout = const.TIMEOUT
         self.timeoutEdit = QLineEdit(str(self.timeout))
         self.timeoutEdit.setPlaceholderText("Input timeout")
         self.timeoutEdit.setMaximumWidth(100)
         self.timeoutEdit.setValidator(QIntValidator(1, 1000))
-        self.sendButton = QPushButton(CONST_SEND_BUTTON_SEND_TEXT)
+        self.sendButton = QPushButton(const.SEND_BUTTON_SEND_TEXT)
         self.serviceEdit = QLineEdit()
         self.serviceEdit.setFocusPolicy(QtCoreQt.NoFocus)
-        self.serviceEdit.setPlaceholderText("Input service name, for example: {}".format(CONST_SERVICE_INPUT))
+        self.serviceEdit.setPlaceholderText("Input service name, for example: {}".format(const.SERVICE_INPUT))
         self.methodEdit = QLineEdit()
         self.methodEdit.setFocusPolicy(QtCoreQt.NoFocus)
         self.methodEdit.setMinimumWidth(400)
-        self.methodEdit.setPlaceholderText("Input method name, for example: {}".format(CONST_METHOD_INPUT))
+        self.methodEdit.setPlaceholderText("Input method name, for example: {}".format(const.METHOD_INPUT))
 
         # 初始化输出日志组件
         self.logTextBox = QTextEditLogger(self)
@@ -600,7 +557,7 @@ class NamekoManWidget(QWidget):
         self.resultLabel.setWordWrap(True)
         self.resultLabel.setAlignment(QtCoreQt.AlignLeft)
         self.resultLabel.setTextInteractionFlags(QtCoreQt.TextSelectableByMouse)
-        self.resultLabel.setText(README)
+        self.resultLabel.setText(const.README)
         self.scrollArea.setWidget(self.resultLabel)
         self.scrollArea.setMinimumSize(500, 600)
 
@@ -629,6 +586,8 @@ class NamekoManWidget(QWidget):
 
         self.rpcThread = None
 
+        self.nodeInfo = None
+
     def showResult(self, result: str):
         # 为了显示居中，用2个空格替换1个空格
         self.resultLabel.setText(result.replace(" ", "  "))
@@ -643,7 +602,7 @@ class NamekoManWidget(QWidget):
             return int(timeout)
         except Exception as e:
             logging.exception(e)
-            return CONST_TIMEOUT
+            return const.TIMEOUT
 
     def hasNamekoClient(self):
         return hasattr(self, self.RPC)
@@ -655,8 +614,8 @@ class NamekoManWidget(QWidget):
         setup_config(None, define=getAMQPConfig(self.broker))
         client = ClusterRpcClient(timeout=self.getTimeoutInput())
         setattr(self, self.RPC, client.start())
-        logging.info("Set new nameko, broker:{}, timeout:{}".format(
-            self.getBrokerInput(), self.getTimeoutInput())
+        logging.info(
+            "Set new nameko, broker:{}, timeout:{}".format(self.getBrokerInput(), self.getTimeoutInput())
         )
 
     def initNameko(self):
@@ -676,37 +635,42 @@ class NamekoManWidget(QWidget):
                     delattr(self, self.RPC)
                     self.setNamekoClient()
         except Exception as e:
-            self.showResult(errorToJsonStr(repr(e)))
+            self.showResult(utils.errorToJsonStr(repr(e)))
             logging.exception(e)
 
     def lockSendButton(self):
         self.sendButton.setDisabled(True)
-        self.sendButton.setText(CONST_SEND_BUTTON_WAIT_TEXT)
+        self.sendButton.setText(const.SEND_BUTTON_WAIT_TEXT)
         self.sendButton.repaint()
 
     def unlockSendButton(self):
         self.sendButton.setDisabled(False)
-        self.sendButton.setText(CONST_SEND_BUTTON_SEND_TEXT)
+        self.sendButton.setText(const.SEND_BUTTON_SEND_TEXT)
         self.sendButton.repaint()
 
     def onClickedNode(self, info):
         """
         显示鼠标选择节点数据
         """
-        self.serviceEdit.setText(info.get(CONST_SERVICE, ""))
-        self.methodEdit.setText(info.get(CONST_METHOD, ""))
-        params = info.get(CONST_PARAMS, {})
+        self.serviceEdit.setText(info.get(const.NODE_SERVICE, ""))
+        self.methodEdit.setText(info.get(const.NODE_METHOD, ""))
+        params = info.get(const.PARAMS, {})
+        result = info.get(const.RESULT, {})
         if params is not None:
-            self.paramsEdit.setText(objectToJsonStr(params))
+            self.paramsEdit.setText(utils.objectToJsonStr(params))
+        if result is not None:
+            self.showResult(utils.objectToJsonStr(result))
+
+        self.nodeInfo = info
 
     def onSendRpc(self):
         self.initNameko()
 
         if not self.hasNamekoClient():
-            self.showResult(errorToJsonStr("Can't connect to mq, please check mq or broker!"))
+            self.showResult(utils.errorToJsonStr("Can't connect to mq, please check mq or broker!"))
             return
         node = self.folderBar.getCurrentClickedNode()
-        if not node or node.getType() != CONST_METHOD:
+        if not node or node.getType() != const.NODE_METHOD:
             alert("Please choose one method!")
             return
         service, method, params = self.serviceEdit.text(), self.methodEdit.text(), self.paramsEdit.text()
@@ -714,20 +678,37 @@ class NamekoManWidget(QWidget):
         try:
             params = json.loads(params)
             self.lockSendButton()
-            self.rpcThread = SendRpcThread(getattr(self, self.RPC), service, method, params)
+            self.rpcThread = SendRpcThread(
+                getattr(self, self.RPC),
+                self.nodeInfo.get(const.NODE_PROJECT, ""),
+                service,
+                self.nodeInfo.get(const.NODE_MODULE, ""),
+                method,
+                params
+            )
             self.rpcThread.finishSignal.connect(self.onSendRpcFinished)
             self.rpcThread.start()
         except Exception as e:
-            self.showResult(errorToJsonStr(repr(e)))
+            self.showResult(utils.errorToJsonStr(repr(e)))
 
         node.updateParams(params)
 
-    def onSendRpcFinished(self, result: str):
-        if len(result) > MAX_LENGTH:
-            result = result[:MAX_LENGTH]
+    def onSendRpcFinished(self, data: str):
+        data = json.loads(data)
+        result = utils.objectToJsonStr(data["result"])
+        if len(result) > const.MAX_LENGTH:
+            result = result[:const.MAX_LENGTH]
             result += "...... Sorry, the result is too long. Please check the log for whole result."
         self.showResult(result)
         self.unlockSendButton()
+        if "error" not in result.lower() and len(result) < const.MAX_LENGTH:
+            storage.updateResut(
+                data[const.NODE_PROJECT],
+                data[const.NODE_SERVICE],
+                data[const.NODE_MODULE],
+                data[const.NODE_METHOD],
+                data["result"]
+            )
 
 
 def error_handler(etype, value, tb):
